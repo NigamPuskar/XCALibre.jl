@@ -197,6 +197,8 @@ function CSIMPLE(
 
     @info "Starting CSIMPLE loops..."
 
+    @info "ALPHA!"
+
     progress = Progress(iterations; dt=1.0, showspeed=true)
 
     xdir, ydir, zdir = XDir(), YDir(), ZDir()
