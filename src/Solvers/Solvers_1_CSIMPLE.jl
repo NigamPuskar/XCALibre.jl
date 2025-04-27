@@ -45,6 +45,7 @@ function setup_compressible_solvers(
     (; solvers, schemes, runtime, hardware) = config
 
     @info "Extracting configuration and input fields..."
+    println("reached here!")
 
     # model = adapt(hardware.backend, model_in)
     (; U, p) = model.momentum
