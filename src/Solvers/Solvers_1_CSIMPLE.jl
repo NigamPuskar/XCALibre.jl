@@ -268,7 +268,8 @@ function CSIMPLE(
             clamp!(p.values, pmin, pmax)
         end
 
-        explicit_relaxation!(p, prev, solvers.p.relax, config)
+        alpha_values = explicit_relaxation!(p, prev, solvers.p.relax, time, config)
+        println("alpha_values: ", alpha_values)
 
         grad!(∇p, pf, p, p.BCs, time, config) 
         limit_gradient!(schemes.p.limiter, ∇p, p, config)
