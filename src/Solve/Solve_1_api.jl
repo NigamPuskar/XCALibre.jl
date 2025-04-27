@@ -209,20 +209,34 @@ end
     end
 end
 
-function explicit_relaxation!(phi, phi0, alpha, config)
+function explicit_relaxation!(phi, phi0, alpha, time, config)
     (; hardware) = config
     (; backend, workgroup) = hardware
 
+    alpha_values = zeros(length(phi)) 
+
     kernel! = explicit_relaxation_kernel!(backend, workgroup)
-    kernel!(phi, phi0, alpha, ndrange = length(phi))
+    kernel!(phi, phi0, alpha, time, alpha_values, ndrange = length(phi))
     # KernelAbstractions.synchronize(backend)
+    return alpha_values
 end
 
-@kernel function explicit_relaxation_kernel!(phi, phi0, alpha)
+@kernel function explicit_relaxation_kernel!(phi, phi0, alpha, time, alpha_values)
     i = @index(Global)
-
     @inbounds begin
-        phi[i] = phi0[i] + alpha*(phi[i] - phi0[i])
+        local_alpha = alpha
+
+        #Apply adaptive alpha only in first 100 iterations and for high phi gradients
+        if time <=100
+            gradient = abs(phi[i] - phi0[i])
+            shock_threshold = 1e-3
+            if gradient > shock_threshold
+                local_alpha = alpha * 0.5
+            end
+        end
+
+        phi[i] = phi0[i] + local_alpha*(phi[i] - phi0[i])
+        alpha_values[i] = local_alpha
     end
 end
 
