@@ -268,8 +268,8 @@ function CSIMPLE(
             clamp!(p.values, pmin, pmax)
         end
 
-        alpha_values = explicit_relaxation!(p, prev, solvers.p.relax, time, config)
-        println("alpha_values: ", alpha_values)
+        #alpha_values = explicit_relaxation!(p, prev, solvers.p.relax, time, config)
+        #println("alpha_values: ", alpha_values)
 
         grad!(∇p, pf, p, p.BCs, time, config) 
         limit_gradient!(schemes.p.limiter, ∇p, p, config)
@@ -318,6 +318,7 @@ function CSIMPLE(
         turbulence!(turbulenceModel, model, S, prev, time, config) 
         update_nueff!(nueff, nu, model.turbulence, config)
 
+        println("YES")
         @. mueff.values = rhof.values*nueff.values
 
         R_ux[iteration] = rx

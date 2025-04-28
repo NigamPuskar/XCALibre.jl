@@ -35,6 +35,7 @@ using Reexport
 @reexport using XCALibre.ModelPhysics
 @reexport using XCALibre.Simulate
 @reexport using XCALibre.Solvers
+export chicken!, csimple!
 @reexport using XCALibre.Postprocess
 @reexport using XCALibre.VTK
 @reexport using XCALibre.UNV3
