@@ -1,3 +1,6 @@
+export geometry!
+export centre2d
+export geometric_centre
 
 function centre2d(face::Face2D{I,F}) where {I,F}
     c = face.centre

@@ -2,7 +2,7 @@ export cpiso!
 
 """
     cpiso!(model, config; 
-        output=VTK(), pref=nothing, ncorrectors=0, inner_loops=0)
+        pref=nothing, ncorrectors=0, inner_loops=0)
 
 Compressible and transient variant of the PISO algorithm with a sensible enthalpy transport equation for the energy. 
 
@@ -10,7 +10,6 @@ Compressible and transient variant of the PISO algorithm with a sensible enthalp
 
 - `model` reference to a `Physics` model defined by the user.
 - `config` Configuration structure defined by the user with solvers, schemes, runtime and hardware structures configuration details.
-- `output` select the format used for simulation results from `VTK()` or `OpenFOAM` (default = `VTK()`)
 - `pref` Reference pressure value for cases that do not have a pressure defining BC. Incompressible solvers only (default = `nothing`)
 - `ncorrectors` number of non-orthogonality correction loops (default = `0`)
 - `inner_loops` number to inner loops used in transient solver based on PISO algorithm (default = `0`)
@@ -24,11 +23,10 @@ Compressible and transient variant of the PISO algorithm with a sensible enthalp
 """
 function cpiso!(
     model, config; 
-    output=VTK(), pref=nothing, ncorrectors=0, inner_loops=2) 
+    pref=nothing, ncorrectors=0, inner_loops=2) 
 
     residuals = setup_unsteady_compressible_solvers(
         CPISO, model, config; 
-        output=output,
         pref=pref,
         ncorrectors=ncorrectors, 
         inner_loops=inner_loops
@@ -40,14 +38,14 @@ end
 # Setup for all compressible algorithms
 function setup_unsteady_compressible_solvers(
     solver_variant, model, config; 
-    output=VTK(), pref=nothing, ncorrectors=0, inner_loops=2
+    pref=nothing, ncorrectors=0, inner_loops=2
     ) 
 
     (; solvers, schemes, runtime, hardware) = config
 
     @info "Extracting configuration and input fields..."
 
-    (; U, p, Uf, pf) = model.momentum
+    (; U, p) = model.momentum
     (; rho) = model.fluid
     mesh = model.domain
 
@@ -82,7 +80,7 @@ function setup_unsteady_compressible_solvers(
         == 
         - Source(∇p.result)
         + Source(mueffgradUt)
-    ) → VectorEquation(U)
+    ) → VectorEquation(mesh)
 
     if typeof(model.fluid) <: WeaklyCompressible
         
@@ -91,7 +89,7 @@ function setup_unsteady_compressible_solvers(
             - Laplacian{schemes.p.laplacian}(rhorDf, p)
             ==
             - Source(divHv)
-        ) → ScalarEquation(p)
+        ) → ScalarEquation(mesh)
 
     elseif typeof(model.fluid) <: Compressible
 
@@ -104,7 +102,7 @@ function setup_unsteady_compressible_solvers(
             ==
             -Source(divHv)
             -Source(ddtrho) # capture correction part of dPdT and explicit drhodt
-        ) → ScalarEquation(p)
+        ) → ScalarEquation(mesh)
     end
 
     @info "Initialising preconditioners..."
@@ -129,7 +127,6 @@ function setup_unsteady_compressible_solvers(
 
     residuals  = solver_variant(
         model, turbulenceModel, energyModel, ∇p, U_eqn, p_eqn, config;
-        output=output,
         pref=pref, 
         ncorrectors=ncorrectors, 
         inner_loops=inner_loops)
@@ -139,10 +136,10 @@ end # end function
 
 function CPISO(
     model, turbulenceModel, energyModel, ∇p, U_eqn, p_eqn, config; 
-    output=VTK(), pref=nothing, ncorrectors=0, inner_loops=2)
+    pref=nothing, ncorrectors=0, inner_loops=2)
     
     # Extract model variables and configuration
-    (; U, p, Uf, pf) = model.momentum
+    (; U, p) = model.momentum
     (; rho, rhof, nu) = model.fluid
     (; dpdt) = model.energy
     mesh = model.domain
@@ -157,7 +154,9 @@ function CPISO(
     rhorDf = get_flux(p_eqn, 2)
     divHv = get_source(p_eqn, 1)
 
-    outputWriter = initialise_writer(output, model.domain)
+    @info "Initialise VTKWriter (Store mesh in host memory)"
+
+    VTKMeshData = initialise_writer(model.domain)
     
     @info "Allocating working memory..."
 
@@ -226,7 +225,7 @@ function CPISO(
     progress = Progress(iterations; dt=1.0, showspeed=true)
 
     for iteration ∈ 1:iterations
-        time = iteration *dt
+        time = (iteration - 1)*dt
 
         ## CHECK GRADU AND EXPLICIT STRESSES
         # grad!(gradU, Uf, U, U.BCs, time, config) # calculated in `turbulence!`
@@ -360,7 +359,7 @@ function CPISO(
         )
 
     if iteration%write_interval + signbit(write_interval) == 0
-        save_output(model, outputWriter, time)
+        model2vtk(model, VTKMeshData, @sprintf "timestep_%.6d" iteration)
     end
 
     end # end for loop

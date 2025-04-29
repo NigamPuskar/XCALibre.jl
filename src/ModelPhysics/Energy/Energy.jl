@@ -13,7 +13,7 @@ using XCALibre.Discretise
 using XCALibre.ModelPhysics
 using XCALibre.Solve
 using XCALibre.Calculate
-using XCALibre.IOFormats
+using XCALibre.VTK
 
 include("energy_types.jl")
 

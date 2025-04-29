@@ -1,4 +1,6 @@
 export line!, quad
+export build!
+export find_edge_in_blocks!
 
 function build!(builder::MeshBuilder2D{I,F}) where {I,F}
     mesh = preallocate_mesh(builder)
@@ -284,7 +286,7 @@ function total_elements(builder::MeshBuilder2D{I,F}) where {I,F}
     total_elements
 end
 
-function line!(pts::Vector{Node{I,F}}, p1_index::I, p2_index::I, ncells::I) where {I,F}
+function line!(pts::Vector{Node{F}}, p1_index::I, p2_index::I, ncells::I) where {I,F}
     nodesID = fill(zero(I), ncells+1)
     nodesID[1] = p1_index
     nodesID[end] = p2_index
@@ -299,7 +301,7 @@ function line!(pts::Vector{Node{I,F}}, p1_index::I, p2_index::I, ncells::I) wher
     return Edge(nodesID, ncells, false)
 end
 
-function linear_distribution(p1::Node{I,F}, p2::Node{I,F}, ncells::I) where {I,F}
+function linear_distribution(p1::Node{F}, p2::Node{F}, ncells::I) where {I,F}
     d = p2.coords - p1.coords
     d_mag = norm(d)
     normal = d/d_mag
@@ -307,7 +309,7 @@ function linear_distribution(p1::Node{I,F}, p2::Node{I,F}, ncells::I) where {I,F
     δx, normal
 end
 
-function line!(pts::Vector{Node{I,F}}, p1_index::I, p2_index::I, ncells::I, ratio::Number) where {I,F}
+function line!(pts::Vector{Node{F}}, p1_index::I, p2_index::I, ncells::I, ratio::Number) where {I,F}
     nodesID = fill(zero(I), ncells+1)
     nodesID[1] = p1_index
     nodesID[end] = p2_index
@@ -323,7 +325,7 @@ function line!(pts::Vector{Node{I,F}}, p1_index::I, p2_index::I, ncells::I, rati
 end
 
 function symmetric_tanh_distribution(
-    p1::Node{I,F}, p2::Node{I,F}, ncells::I) where {I,F}
+    p1::Node{F}, p2::Node{F}, ncells::I) where {I,F}
     d = p2.coords - p1.coords
     d_mag = norm(d)
     normal = d/d_mag

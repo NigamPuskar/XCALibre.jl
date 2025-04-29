@@ -2,7 +2,6 @@ export Node, Boundary, Cell
 export Face2D, Face3D
 export Mesh2, Mesh3
 export AbstractMesh
-export AbstractWriter, VTK, OpenFOAM
 
 abstract type AbstractMesh end
 
@@ -197,8 +196,3 @@ $meshType Mesh with:
 -> $(length(mesh.nodes)) nodes"""
     print(io, output)
 end
-
-# Mesh write output
-abstract type AbstractWriter end
-struct VTK <: AbstractWriter end
-struct OpenFOAM <: AbstractWriter end

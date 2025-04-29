@@ -3,7 +3,7 @@ export csimple!
 """
     csimple!(
         model_in, config; 
-        output=VTK(), pref=nothing, ncorrectors=0, inner_loops=0
+        pref=nothing, ncorrectors=0, inner_loops=0
     )
 
 Compressible variant of the SIMPLE algorithm with a sensible enthalpy transport equation for the energy. 
@@ -12,7 +12,6 @@ Compressible variant of the SIMPLE algorithm with a sensible enthalpy transport 
 
 - `model` reference to a `Physics` model defined by the user.
 - `config` Configuration structure defined by the user with solvers, schemes, runtime and hardware structures configuration details.
-- `output` select the format used for simulation results from `VTK()` or `OpenFOAM` (default = `VTK()`)
 - `pref` Reference pressure value for cases that do not have a pressure defining BC. Incompressible solvers only (default = `nothing`)
 - `ncorrectors` number of non-orthogonality correction loops (default = `0`)
 - `inner_loops` number to inner loops used in transient solver based on PISO algorithm (default = `0`)
@@ -26,11 +25,10 @@ Compressible variant of the SIMPLE algorithm with a sensible enthalpy transport 
 - `e` Vector of energy residuals for each iteration.
 
 """
-function csimple!(model, config; output=VTK(), pref=nothing, ncorrectors=0, inner_loops=0) 
+function csimple!(model, config; pref=nothing, ncorrectors=0, inner_loops=0) 
 
     residuals = setup_compressible_solvers(
         CSIMPLE, model, config; 
-        output=output,
         pref=pref, 
         ncorrectors=ncorrectors, 
         inner_loops=inner_loops
@@ -41,7 +39,7 @@ end
 # Setup for all compressible algorithms
 function setup_compressible_solvers(
     solver_variant, model, config; 
-    output=VTK(), pref=nothing, ncorrectors=0, inner_loops=0
+    pref=nothing, ncorrectors=0, inner_loops=0
     ) 
 
     (; solvers, schemes, runtime, hardware) = config
@@ -49,7 +47,7 @@ function setup_compressible_solvers(
     @info "Extracting configuration and input fields..."
 
     # model = adapt(hardware.backend, model_in)
-    (; U, p, Uf, pf) = model.momentum
+    (; U, p) = model.momentum
     (; rho) = model.fluid
     mesh = model.domain
 
@@ -72,13 +70,13 @@ function setup_compressible_solvers(
         == 
         - Source(∇p.result)
         + Source(mueffgradUt)
-    ) → VectorEquation(U)
+    ) → VectorEquation(mesh)
 
     if typeof(model.fluid) <: WeaklyCompressible
 
         p_eqn = (
             - Laplacian{schemes.p.laplacian}(rhorDf, p) == - Source(divHv)
-        ) → ScalarEquation(p)
+        ) → ScalarEquation(mesh)
 
     elseif typeof(model.fluid) <: Compressible
 
@@ -86,7 +84,7 @@ function setup_compressible_solvers(
         p_eqn = (
             Laplacian{schemes.p.laplacian}(rhorDf, p) 
             - Divergence{schemes.p.divergence}(pconv, p) == Source(divHv)
-        ) → ScalarEquation(p)
+        ) → ScalarEquation(mesh)
 
     end
 
@@ -110,7 +108,6 @@ function setup_compressible_solvers(
 
     residuals  = solver_variant(
         model, turbulenceModel, energyModel, ∇p, U_eqn, p_eqn, config;
-        output=output,
         pref=pref, 
         ncorrectors=ncorrectors, 
         inner_loops=inner_loops)
@@ -120,11 +117,11 @@ end # end function
 
 function CSIMPLE(
     model, turbulenceModel, energyModel, ∇p, U_eqn, p_eqn, config ; 
-    output=VTK(), pref=nothing, ncorrectors=0, inner_loops=0
+    pref=nothing, ncorrectors=0, inner_loops=0
     )
     
     # Extract model variables and configuration
-    (; U, p, Uf, pf) = model.momentum
+    (; U, p) = model.momentum
     (; nu, nuf, rho, rhof) = model.fluid
 
     mesh = model.domain
@@ -143,18 +140,20 @@ function CSIMPLE(
         pconv = get_flux(p_eqn, 2)
     end
 
-    outputWriter = initialise_writer(output, model.domain)
+    @info "Initialise VTKWriter (Store mesh in host memory)"
+
+    VTKMeshData = initialise_writer(model.domain)
     
     @info "Allocating working memory..."
 
     # Define aux fields 
     gradU = Grad{schemes.U.gradient}(U)
     gradUT = T(gradU)
-    # Uf = FaceVectorField(mesh)
+    Uf = FaceVectorField(mesh)
     S = StrainRate(gradU, gradUT, U, Uf)
 
     n_cells = length(mesh.cells)
-    # pf = FaceScalarField(mesh)
+    pf = FaceScalarField(mesh)
     nueff = FaceScalarField(mesh)
     prevpf = FaceScalarField(mesh)
     gradpf = FaceVectorField(mesh)
@@ -267,7 +266,9 @@ function CSIMPLE(
             clamp!(p.values, pmin, pmax)
         end
 
-        explicit_relaxation!(p, prev, solvers.p.relax, config)
+        explicit_relaxation!(p, prev, solvers.p.relax, time, config)
+        #alpha_values = explicit_relaxation!(p, prev, solvers.p.relax, time, config)
+        #println(alpha_values)
 
         grad!(∇p, pf, p, p.BCs, time, config) 
         limit_gradient!(schemes.p.limiter, ∇p, p, config)
@@ -338,7 +339,7 @@ function CSIMPLE(
             finish!(progress)
             @info "Simulation converged in $iteration iterations!"
             if !signbit(write_interval)
-                save_output(model, outputWriter, time)
+                model2vtk(model, VTKMeshData, @sprintf "iteration_%.6d" iteration)
             end
             break
         end
@@ -356,11 +357,9 @@ function CSIMPLE(
             )
 
         if iteration%write_interval + signbit(write_interval) == 0      
-            save_output(model, outputWriter, time)
+            model2vtk(model, VTKMeshData, @sprintf "iteration_%.6d" iteration)
         end
-
     end # end for loop
-
     return (Ux=R_ux, Uy=R_uy, Uz=R_uz, p=R_p, e=R_e)
 end
 

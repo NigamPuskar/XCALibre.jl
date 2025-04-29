@@ -13,8 +13,7 @@ end
 segment(p1, p2) = p2 - p1
 unit_vector(vec) = vec/norm(vec)
 
-function initialise_writer(format::VTK, mesh::Mesh3)
-    @info "Initialise writer (Store mesh in host memory)"
+function initialise_writer(mesh::Mesh3)
     # Extract mesh information (copy to CPU if mesh in GPU format)
     backend = _get_backend(mesh)
     nodes_cpu = get_data(mesh.nodes, backend)
@@ -153,13 +152,7 @@ function initialise_writer(format::VTK, mesh::Mesh3)
 end
 
 
-function write_results(iteration::TI, mesh, meshData::VTKWriter3D, args...) where TI
-    name = ""
-    if TI <: Integer
-        name = @sprintf "iteration_%i" iteration
-    else
-        name = @sprintf "time_%.8f" iteration
-    end
+function write_vtk(name, mesh, meshData::VTKWriter3D, args...)
     filename=name*".vtu"
 
     # Define backend and variables

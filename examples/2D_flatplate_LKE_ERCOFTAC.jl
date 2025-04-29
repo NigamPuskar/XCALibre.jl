@@ -1,5 +1,5 @@
 using XCALibre
-using CUDA
+# using CUDA
 
 # backwardFacingStep_2mm, backwardFacingStep_10mm
 # mesh_file = "unv_sample_meshes/flatplate_transition.unv"
@@ -12,8 +12,8 @@ mesh_file = joinpath(grids_dir, grid)
 
 mesh = UNV2D_mesh(mesh_file, scale=0.001)
 
-hardware = set_hardware(backend=CUDABackend(), workgroup=32)
-# hardware = set_hardware(backend=CPU(), workgroup=1024)
+# hardware = set_hardware(backend=CUDABackend(), workgroup=32)
+hardware = set_hardware(backend=CPU(), workgroup=1024)
 
 mesh_dev = adapt(hardware.backend, mesh)
 
@@ -34,7 +34,7 @@ model = Physics(
     fluid = Fluid{Incompressible}(nu = nu),
     turbulence = RANS{KOmegaLKE}(Tu = 0.01, walls=(:wall,)),
     energy = Energy{Isothermal}(),
-    domain = mesh_dev
+    domain = mesh
     )
 
 @assign! model momentum U (
@@ -49,7 +49,7 @@ model = Physics(
 @assign! model momentum p (
     Neumann(:inlet, 0.0),
     Dirichlet(:outlet, 0.0),
-    Wall(:wall, 0.0),
+    Neumann(:wall, 0.0),
     Neumann(:top, 0.0),
     # Neumann(:bottom, 0.0),
     # Neumann(:freestream, 0.0)
@@ -93,11 +93,11 @@ model = Physics(
 
 schemes = (
     U = set_schemes(divergence=LUST),
-    p = set_schemes(divergence=LUST),
-    k = set_schemes(divergence=LUST),
+    p = set_schemes(divergence=Upwind),
+    k = set_schemes(divergence=Upwind),
     y = set_schemes(gradient=Midpoint),
-    kl = set_schemes(divergence=LUST),
-    omega = set_schemes(divergence=LUST)
+    kl = set_schemes(divergence=Upwind,gradient=Midpoint),
+    omega = set_schemes(divergence=Upwind)
 )
 
 
@@ -123,7 +123,6 @@ solvers = (
         solver      = CgSolver, # BicgstabSolver, GmresSolver
         preconditioner = Jacobi(),
         convergence = 1e-8,
-        rtol = 1e-2,
         relax       = 0.9,
     ),
     kl = set_solver(
@@ -169,6 +168,7 @@ initialise!(model.turbulence.nut, k_inlet/ω_inlet)
 
 residuals = run!(model, config); #, pref=0.0) # 9.39k allocs
 
+using Plots
 
 let
     p = plot(; xlims=(0,runtime.iterations), ylims=(1e-10,0))
@@ -180,14 +180,12 @@ end
 
 using DelimitedFiles
 using LinearAlgebra
-using Plots 
+
 # OF_data = readdlm("flatplate_OF_wall_kOmega_lowRe.csv", ',', Float64, skipstart=1)
 # oRex = OF_data[:,7].*velocity[1]./nu[1]
 # oCf = sqrt.(OF_data[:,12].^2 + OF_data[:,13].^2)/(0.5*velocity[1]^2)
 
-model_cpu = adapt(CPU(), model)
-
-tauw, pos = wall_shear_stress(:wall, model_cpu)
+tauw, pos = wall_shear_stress(:wall, model)
 tauMag = [norm(tauw[i]) for i ∈ eachindex(tauw)]
 tauMag = [tauw.x[i] for i ∈ eachindex(tauw)]
 x = [pos[i][1] for i ∈ eachindex(pos)]

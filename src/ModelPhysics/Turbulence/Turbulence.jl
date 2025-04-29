@@ -13,7 +13,7 @@ using XCALibre.Discretise
 using XCALibre.ModelPhysics
 using XCALibre.Solve
 using XCALibre.Calculate
-using XCALibre.IOFormats
+using XCALibre.VTK
 
 include("turbulence_types.jl")
 
@@ -28,6 +28,6 @@ include("RANS_kOmegaLKE.jl")
 include("LES_functions.jl")
 include("LES_Smagorinsky.jl")
 
-export initialise, turbulence!, save_output
+export initialise, turbulence!, model2vtk
 
 # end # end module

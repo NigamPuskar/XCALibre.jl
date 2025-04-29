@@ -1,9 +1,6 @@
-export Periodic, PeriodicParent, PeriodicConnectivity
+export Periodic, PeriodicConnectivity
 export construct_periodic
 export adjust_boundary!
-import XCALibre.ModelFramework._extend_matrix
-
-abstract type AbstractPeriodic <: AbstractPhysicalConstraint end
 
 
 """
@@ -18,31 +15,19 @@ Periodic boundary condition model.
 - 'ID' -- Boundary ID
 - `value` -- tuple containing information needed to apply this boundary
 """
-struct Periodic{I,V} <: AbstractPeriodic
+struct Periodic{I,V} <: AbstractPhysicalConstraint
     ID::I
     value::V
 end
 Adapt.@adapt_structure Periodic
 
-struct PeriodicParent{I,V} <: AbstractPeriodic
-    ID::I
-    value::V
-end
-Adapt.@adapt_structure PeriodicParent
-
-struct PeriodicConnectivity{I}
-    i::I
-    j::I
-end
-Adapt.@adapt_structure PeriodicConnectivity
-
-function fixedValue(BC::T, ID::I, value::V) where {I<:Integer,V, T<:AbstractPeriodic}
+function fixedValue(BC::Periodic, ID::I, value::V) where {I<:Integer,V}
     # Exception 1: Value is scalar
     if V <: Number
-        return T.name.wrapper(ID, value)
+        return Periodic{I,typeof(value)}(ID, value)
         # Exception 2: value is a tupple
     elseif V <: NamedTuple
-        return T.name.wrapper(ID, value)
+        return Periodic{I,V}(ID, value)
     # Error if value is not scalar or tuple
     else
         throw("The value provided should be a scalar or a tuple")
@@ -109,10 +94,10 @@ function construct_periodic(mesh, backend, patch1::Symbol, patch2::Symbol)
         faceAddress2[i] = boundaries[idx1].IDs_range[idx]
     end
 
-    values1 = (patchID=idx2, distance=distance, face_map=faceAddress1, isparent=true)
-    values2 = (patchID=idx1, distance=distance, face_map=faceAddress2, isparent=false)
+    values1 = (index=idx1, distance=distance, face_map=faceAddress1, ismaster=true)
+    values2 = (index=idx2, distance=distance, face_map=faceAddress2, ismaster=false)
 
-    p1 = PeriodicParent(patch1, values1)
+    p1 = Periodic(patch1, values1)
     p2 = Periodic(patch2, values2)
 
     periodic1 = adapt(backend, p1)
@@ -121,44 +106,7 @@ function construct_periodic(mesh, backend, patch1::Symbol, patch2::Symbol)
     return (periodic1, periodic2)
 end
 
-_extend_matrix(BC::PeriodicParent, mesh,  i, j) = begin
-    i_ext, j_ext = periodic_matrix_connectivity(BC, mesh)
-    return [i; i_ext], [j; j_ext]
-end
-
-function periodic_matrix_connectivity(BC::PeriodicParent, mesh)
-    (; faces, boundaries) = mesh
-
-    # Copy to CPU: this is a temporary fix and should be re-thought avoiding data transfer
-    BC_cpu = adapt(CPU(), BC)
-    faces_cpu = adapt(CPU(), faces)
-    boundaries_cpu = adapt(CPU(), boundaries)
-    BC1 = boundaries_cpu[BC.ID].IDs_range
-
-    fmap1 = BC_cpu.value.face_map
-    i = zeros(Int, 2*length(fmap1))
-    j = zeros(Int, 2*length(fmap1))
-
-    nindex = 0
-    for (fID1, fID2) ∈ zip(BC1, fmap1)
-        face1 = faces_cpu[fID1]
-        face2 = faces_cpu[fID2]
-        cID1 = face1.ownerCells[1]
-        cID2 = face2.ownerCells[1]
-
-        nindex += 1
-        i[nindex] = cID1
-        j[nindex] = cID2
-
-        nindex += 1
-        i[nindex] = cID2
-        j[nindex] = cID1
-    end
-
-    return i, j
-end
-
-@define_boundary Union{PeriodicParent,Periodic} Laplacian{Linear} begin
+@define_boundary Periodic Laplacian{Linear} begin
 
     phi = term.phi
     mesh = phi.mesh 
@@ -177,19 +125,16 @@ end
     
     # Retrieve term flux and extract fields from workitem face
     (; area, normal) = face
-    ap = term.sign*(term.flux[fID]*area)/delta
-    ac = -ap
-    an = ap
+    J = term.flux[fID]
+    flux = J*area/delta
+    ap = term.sign*(-flux)
 
-    # Playing with implicit version
-    fzcellID = spindex(rowptr, colval, cellID, pcellID)
-    nzval[fzcellID] = an
-    ac, 0.0
+    # Explicit allowing looping over slave patch
+    ap, ap*values[pcellID] # explicit this works
 
-    # ac, -an*values[pcellID] # explicit this works
 end
 
-@define_boundary Union{PeriodicParent,Periodic} Divergence{Linear} begin
+@define_boundary Periodic Divergence{Linear} begin
     phi = term.phi
     mesh = phi.mesh 
     (; faces, cells) = mesh
@@ -205,7 +150,7 @@ end
     delta2 = pface.delta
     delta = delta1 + delta2
     
-    weight = delta2/delta
+    weight = delta1/delta
     one_minus_weight = one(eltype(weight)) - weight
 
     # Calculate ap value to increment
@@ -214,15 +159,11 @@ end
     ac = weight*ap
     an = one_minus_weight*ap
 
-    # Playing with implicit version
-    # fzcellID = spindex(rowptr, colval, cellID, pcellID)
-    # nzval[fzcellID] = an
-    # ac, 0.0
-
+    # Explicit allowing looping over slave patch
     ac, -an*values[pcellID] # explicit this works
 end
 
-@define_boundary Union{PeriodicParent,Periodic} Divergence{Upwind} begin
+@define_boundary Periodic Divergence{Upwind} begin
     phi = term.phi
     mesh = phi.mesh 
     (; faces, cells) = mesh
@@ -238,7 +179,7 @@ end
     delta2 = pface.delta
     delta = delta1 + delta2
 
-    weight = delta2/delta
+    weight = delta1/delta
     one_minus_weight = one(eltype(weight)) - weight
 
     # Calculate ap value to increment
@@ -247,15 +188,11 @@ end
     ac = weight*ap
     an = one_minus_weight*ap
 
-    # Playing with implicit version
-    # fzcellID = spindex(rowptr, colval, cellID, pcellID)
-    # nzval[fzcellID] = an
-    # ac, 0.0
-
+    # Explicit allowing looping over slave patch
     ac, -an*values[pcellID] # explicit this works
 end
 
-@define_boundary Union{PeriodicParent,Periodic} Divergence{LUST} begin
+@define_boundary Periodic Divergence{LUST} begin
     phi = term.phi
     mesh = phi.mesh 
     (; faces, cells) = mesh
@@ -270,8 +207,8 @@ end
     delta1 = face.delta
     delta2 = pface.delta
     delta = delta1 + delta2
-
-    weight = delta2/delta
+    
+    weight = delta1/delta
     one_minus_weight = one(eltype(weight)) - weight
 
     # Calculate ap value to increment
@@ -280,10 +217,6 @@ end
     ac = weight*ap
     an = one_minus_weight*ap
 
-    # Playing with implicit version
-    # fzcellID = spindex(rowptr, colval, cellID, pcellID)
-    # nzval[fzcellID] = an
-    # ac, 0.0
-
+    # Explicit allowing looping over slave patch
     ac, -an*values[pcellID] # explicit this works
 end

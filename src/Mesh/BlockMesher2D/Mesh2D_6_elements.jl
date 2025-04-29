@@ -1,3 +1,4 @@
+export build_elements!, centres
 
 function build_elements!(multiblock::MultiBlock{I,F}) where {I,F}
     nodes = multiblock.nodes

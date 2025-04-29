@@ -1,3 +1,5 @@
+export connect!
+
 function connect!(mesh::Mesh2{I,F}, builder::MeshBuilder2D{I,F}) where {I,F}
     assign_cellsID_to_boundary_faces!(mesh, builder)
     assign_cellsID_to_boundaries!(mesh, builder)
@@ -7,6 +9,7 @@ function connect!(mesh::Mesh2{I,F}, builder::MeshBuilder2D{I,F}) where {I,F}
     assign_facesID_to_cells!(mesh, builder) # allocations due to growing facesID vec
     assign_neighbours_to_cells!(mesh, builder) # allocations to grow "neighbours"
     builder = nothing
+    # mesh
     nothing
 end
 
@@ -142,15 +145,6 @@ function assign_cellsID_to_internal_faces!(
             end
         end
     end
-end
-
-function total_boundary_faces(mesh)
-    # calculate total number of boundary faces
-    nbfaces = 0
-    for boundary ∈ mesh.boundaries
-        nbfaces += length(boundary.facesID)
-    end
-    return nbfaces
 end
 
 function assign_facesID_to_cells!(

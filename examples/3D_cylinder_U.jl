@@ -85,7 +85,7 @@ GC.gc()
 
 initialise!(model.momentum.U, velocity)
 initialise!(model.momentum.p, 0.0)
-# save_output(model, "WRITE_TEST")
+# model2vtk(model, "WRITE_TEST")
 
 backend = CPU()
 backend = CUDABackend()

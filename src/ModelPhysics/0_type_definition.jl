@@ -83,11 +83,9 @@ Momentum model containing key momentum fields.
 ### Examples
 - `Momentum(mesh::AbstractMesh)
 """
-struct Momentum{V,S,Vf,Sf,SS} <: AbstractMomentumModel
+struct Momentum{V,S,SS} <: AbstractMomentumModel
     U::V 
     p::S 
-    Uf::Vf 
-    pf::Sf 
     sources::SS
 end 
 Adapt.@adapt_structure Momentum 
@@ -96,9 +94,7 @@ Adapt.@adapt_structure Momentum
 Momentum(mesh::AbstractMesh) = begin
     U = VectorField(mesh)
     p = ScalarField(mesh)
-    Uf = FaceVectorField(mesh)
-    pf = FaceScalarField(mesh)
-    Momentum(U, p, Uf, pf, nothing)
+    Momentum(U, p, nothing)
 end
 
 """

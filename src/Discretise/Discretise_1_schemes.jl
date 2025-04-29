@@ -82,8 +82,8 @@ end
     xN = cellN.centre
     
     # Calculate weights using normal functions
-    # weight = norm(xN - xf)/norm(xN - xC)
-    weight = norm(xN - xf)/(norm(xN - xf) + norm(xC - xf))
+    # weight = norm(xf - xC)/norm(xN - xC)
+    weight = norm(xN - xf)/norm(xN - xC)
     one_minus_weight = one(eltype(weight)) - weight
 
     # Calculate required increment
@@ -124,7 +124,7 @@ end
     xN = cellN.centre
     
     # Calculate weights using normal functions
-    weight = norm(xN - xf)/(norm(xN - xf) + norm(xC - xf))
+    weight = norm(xN - xf)/norm(xN - xC)
     one_minus_weight = one(eltype(weight)) - weight
 
     # Calculate coefficients

@@ -17,12 +17,11 @@ include("ModelFramework/ModelFramework.jl")
 include("Discretise/Discretise.jl")
 include("Solve/Solve.jl")
 include("Calculate/Calculate.jl")
-include("IOFormats/IOFormats.jl")
+include("VTK/VTK.jl")
 include("ModelPhysics/ModelPhysics.jl")
 include("Simulate/Simulate.jl")
 include("Solvers/Solvers.jl")
 include("Postprocess/Postprocess.jl")
-include("Mesh/BlockMesher2D/BlockMesher2D.jl")
 
 using Reexport
 @reexport using XCALibre.Multithread
@@ -36,11 +35,11 @@ using Reexport
 @reexport using XCALibre.ModelPhysics
 @reexport using XCALibre.Simulate
 @reexport using XCALibre.Solvers
+export chicken!, csimple!
 @reexport using XCALibre.Postprocess
-@reexport using XCALibre.IOFormats
+@reexport using XCALibre.VTK
 @reexport using XCALibre.UNV3
 @reexport using XCALibre.UNV2
-@reexport using XCALibre.BlockMesher2D
 
 using StaticArrays, LinearAlgebra, SparseMatricesCSR, SparseArrays, LinearOperators
 using ProgressMeter, Printf, Adapt
