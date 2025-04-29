@@ -50,61 +50,70 @@ function limit_gradient!(method::CellBased, ∇F, F::VectorField, config)
 end
 
 # @kernel function _limit_gradient!(x, y, z, Ff, F, cells, cell_neighbours, cell_faces, cell_nsign, faces)
-@kernel function _limit_gradient!(::CellBased, x, y, z, F, cells, cell_neighbours, cell_faces, cell_nsign, faces)
-    cID = @index(Global)
-
-    cell = cells[cID]
-    faces_range = cell.faces_range
-    phiP = F[cID]
-    phiMax = phiMin = phiP
- 
-    for fi ∈ faces_range
-        nID = cell_neighbours[fi]
-        phiN = F[nID]
-        
-        # fID = cell_faces[fi]
-        # phiN = Ff[fID]
-
-        phiMax = max(phiN, phiMax)
-        phiMin = min(phiN, phiMin)
-    end
-
-    # g0 = ∇F[cID]
-    grad0 = SVector{3}(x[cID] , y[cID] , z[cID])
-
-    cc = cell.centre
-    uno = one(eltype(F[cID]))
-    limiter = uno
-    limiterf = uno
-    for fi ∈ faces_range 
-        fID = cell_faces[fi]
-        nID = cell_neighbours[fi]
-        face = faces[fID]
-        cellN = cells[nID]
-        # nID = face.ownerCells[2]
-        # phiN = F[nID]
-        normal = face.normal
-        nsign = cell_nsign[fi]
-        na = nsign*normal
-
-        
-        fc = face.centre
-        nc = cellN.centre
-        δϕ = (nc - cc)⋅grad0
-        # δϕ = (fc - cc)⋅grad0
-
-        if δϕ > 0
-            limiterf = min(limiter, (phiMax - phiP)/δϕ)
-        elseif δϕ < 0
-            limiterf = min(limiter, (phiMin - phiP)/δϕ)
-        # else
-        #     limiterf = uno
+    @kernel function _limit_gradient!(::CellBased, x, y, z, F, cells, cell_neighbours, cell_faces, cell_nsign, faces)
+        cID = @index(Global)
+    
+        cell = cells[cID]
+        faces_range = cell.faces_range
+        phiP = F[cID]
+        phiMax = phiMin = phiP
+     
+        for fi ∈ faces_range
+            nID = cell_neighbours[fi]
+            phiN = F[nID]
+            
+            # fID = cell_faces[fi]
+            # phiN = Ff[fID]
+    
+            phiMax = max(phiN, phiMax)
+            phiMin = min(phiN, phiMin)
         end
-        # limiter = min(limiterf, limiter)
-        limiter = limiterf
+    
+        # g0 = ∇F[cID]
+        grad0 = SVector{3}(x[cID] , y[cID] , z[cID])
+    
+        cc = cell.centre
+        uno = one(eltype(F[cID]))
+        limiter = uno
+        limiterf = uno
+        for fi ∈ faces_range 
+            fID = cell_faces[fi]
+            nID = cell_neighbours[fi]
+            face = faces[fID]
+            cellN = cells[nID]
+            # nID = face.ownerCells[2]
+            # phiN = F[nID]
+            normal = face.normal
+            nsign = cell_nsign[fi]
+            na = nsign*normal
+    
+            
+            fc = face.centre
+            nc = cellN.centre
+            δϕdownwind = phiN - phiP #Actual change
+            δϕupwind = (nc - cc)⋅grad0 #Predicted change
+            
+            if abs(δϕupwind) > 1e-15
+                r = (δϕdownwind/δϕupwind)
+            else
+                r = 0.0
+            end
+    
+            ψ = max(0.0, min(2*r, 1.0), min(r, 2.0))
+            #=
+            if δϕ > 0
+                limiterf = min(limiter, (phiMax - phiP)/δϕ)
+            elseif δϕ < 0
+                limiterf = min(limiter, (phiMin - phiP)/δϕ)
+            # else
+            #     limiterf = uno
+            end
+            # limiter = min(limiterf, limiter)
+            =#
+            #limiter = limiterf
+            grad0 *= ψ
+        end
+        x.values[cID] = grad0[1]
+        y.values[cID] = grad0[2]
+        z.values[cID] = grad0[3]
     end
-    grad0 *= limiter
-    x.values[cID] = grad0[1]
-    y.values[cID] = grad0[2]
-    z.values[cID] = grad0[3]
-end

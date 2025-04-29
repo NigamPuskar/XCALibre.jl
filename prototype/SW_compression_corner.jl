@@ -1,7 +1,7 @@
 using Revise
 using XCALibre
 
-mesh_file = "Compression_Corner_2.unv"
+mesh_file = pkgdir(XCALibre, "prototype/Compression_Corner_2.unv")
 mesh = UNV2D_mesh(mesh_file, scale=0.001)
 
 # Select backend and setup hardware
@@ -149,7 +149,7 @@ solvers = (
         solver      = BicgstabSolver, # Options: GmresSolver
         preconditioner = Jacobi(), # Options: NormDiagonal(), DILU(), ILU0()
         convergence = 1e-7,
-        relax       = 0.6,
+        relax       = 0.5,
     ),
     p = set_solver(
         model.momentum.p;
@@ -163,21 +163,21 @@ solvers = (
         solver      = BicgstabSolver, # Options: CgSolver, BicgstabSolver, GmresSolver
         preconditioner = Jacobi(), # Options: NormDiagonal(), LDL() (with GmresSolver)
         convergence = 1e-7,
-        relax       = 0.3,
+        relax       = 0.5,
     ), 
     k = set_solver(
         model.turbulence.k;
         solver      = BicgstabSolver, # Options: GmresSolver
         preconditioner = Jacobi(), # Options: NormDiagonal(), DILU(), ILU0()
         convergence = 1e-7,
-        relax       = 0.4,
+        relax       = 0.5,
     ),
     omega = set_solver(
         model.turbulence.omega;
         solver      = BicgstabSolver, # Options: GmresSolver
         preconditioner = Jacobi(), # Options: NormDiagonal(), DILU(), ILU0()
         convergence = 1e-7,
-        relax       = 0.4,
+        relax       = 0.5,
     ),
 )
 

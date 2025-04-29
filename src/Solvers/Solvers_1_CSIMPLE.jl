@@ -44,7 +44,7 @@ function setup_compressible_solvers(
 
     (; solvers, schemes, runtime, hardware) = config
 
-    @info "Extracting configuration and input field..."
+    @info "Extracting configuration and input fields..."
 
     # model = adapt(hardware.backend, model_in)
     (; U, p) = model.momentum
@@ -197,8 +197,6 @@ function CSIMPLE(
 
     @info "Starting CSIMPLE loops..."
 
-    @info "ALPHA!"
-
     progress = Progress(iterations; dt=1.0, showspeed=true)
 
     xdir, ydir, zdir = XDir(), YDir(), ZDir()
@@ -268,8 +266,9 @@ function CSIMPLE(
             clamp!(p.values, pmin, pmax)
         end
 
+        explicit_relaxation!(p, prev, solvers.p.relax, time, config)
         #alpha_values = explicit_relaxation!(p, prev, solvers.p.relax, time, config)
-        #println("alpha_values: ", alpha_values)
+        #println(alpha_values)
 
         grad!(∇p, pf, p, p.BCs, time, config) 
         limit_gradient!(schemes.p.limiter, ∇p, p, config)
@@ -318,7 +317,6 @@ function CSIMPLE(
         turbulence!(turbulenceModel, model, S, prev, time, config) 
         update_nueff!(nueff, nu, model.turbulence, config)
 
-        println("YES")
         @. mueff.values = rhof.values*nueff.values
 
         R_ux[iteration] = rx
@@ -361,9 +359,7 @@ function CSIMPLE(
         if iteration%write_interval + signbit(write_interval) == 0      
             model2vtk(model, VTKMeshData, @sprintf "iteration_%.6d" iteration)
         end
-
     end # end for loop
-
     return (Ux=R_ux, Uy=R_uy, Uz=R_uz, p=R_p, e=R_e)
 end
 
